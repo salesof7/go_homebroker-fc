@@ -24,16 +24,25 @@ func NewBook(order *Order, transaction *Transaction, wg *sync.WaitGroup) *Book {
 }
 
 func (b *Book) Trade() {
-	buyOrders := NewOrderQueue()
-	sellOrders := NewOrderQueue()
-
-	heap.Init(buyOrders)
-	heap.Init(sellOrders)
+	buyOrders := make(map[string]*OrderQueue)
+	sellOrders := make(map[string]*OrderQueue)
 
 	for order := range b.OrdersChan {
+		asset := order.Asset.ID
+
+		if buyOrders[asset] == nil {
+			buyOrders[asset] = NewOrderQueue()
+			heap.Init(buyOrders[asset])
+		}
+
+		if sellOrders[asset] == nil {
+			sellOrders[asset] = NewOrderQueue()
+			heap.Init(sellOrders[asset])
+		}
+
 		if order.OrderType == "BUY" {
-			if sellOrders.Len() > 0 && sellOrders.Orders[0].Price <= order.Price {
-				sellOrder := sellOrders.Pop().(*Order)
+			if sellOrders[asset].Len() > 0 && sellOrders[asset].Orders[0].Price <= order.Price {
+				sellOrder := sellOrders[asset].Pop().(*Order)
 				if sellOrder.PendingShares > 0 {
 					transaction := NewTransaction(sellOrder, order, order.Shares, sellOrder.Price)
 					b.AddTransaction(transaction, b.Wg)
@@ -41,14 +50,14 @@ func (b *Book) Trade() {
 					b.OrderChanOut <- sellOrder
 					b.OrderChanOut <- order
 					if sellOrder.PendingShares > 0 {
-						sellOrders.Push(sellOrder)
+						sellOrders[asset].Push(sellOrder)
 					}
 				}
 			}
 		} else if order.OrderType == "SELL" {
-			sellOrders.Push(order)
-			if buyOrders.Len() > 0 && buyOrders.Orders[0].Price >= order.Price {
-				buyOrder := buyOrders.Pop().(*Order)
+			sellOrders[asset].Push(order)
+			if buyOrders[asset].Len() > 0 && buyOrders[asset].Orders[0].Price >= order.Price {
+				buyOrder := buyOrders[asset].Pop().(*Order)
 				if buyOrder.PendingShares > 0 {
 					transaction := NewTransaction(buyOrder, order, order.Shares, buyOrder.Price)
 					b.AddTransaction(transaction, b.Wg)
@@ -56,7 +65,7 @@ func (b *Book) Trade() {
 					b.OrderChanOut <- buyOrder
 					b.OrderChanOut <- order
 					if buyOrder.PendingShares > 0 {
-						buyOrders.Push(buyOrder)
+						buyOrders[asset].Push(buyOrder)
 					}
 				}
 			}
