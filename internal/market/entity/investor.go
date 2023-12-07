@@ -19,7 +19,7 @@ func (i *Investor) AddAssetPosition(assetPosition *InvestorAssetPosition) {
 
 func (i *Investor) UpdateAssetPosition(assetID string, qtdShares int) {
 	assetPosition := i.GetAssetPosition(assetID)
-	if assetPosition != nil {
+	if assetPosition == nil {
 		i.AssetPosition = append(i.AssetPosition, NewInvestorAssetPosition(assetID, qtdShares))
 	} else {
 		assetPosition.Shares += qtdShares
